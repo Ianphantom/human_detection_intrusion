@@ -9,6 +9,7 @@ from PIL import Image
 import time
 import requests
 import json
+from torchvision import transforms
 
 # === Telegram Settings ===
 TELEGRAM_BOT_TOKEN = '7792899121:AAHaQs_IhhU9iXBzl8BMYCEU10vaCM9-7ww'
@@ -19,9 +20,10 @@ REMINDER_INTERVAL = 10    # seconds
 telegram_chat_id = '1638913692'
 last_alert_time = 0
 alert_acknowledged = False
+notification_feature_on = False
 
 # === Load YOLOv5 model ===
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+model = torch.hub.load('ultralytics/yolov5', 'yolov5n', pretrained=True)
 model.cpu()
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -113,7 +115,10 @@ def run_camera():
     global last_alert_time, alert_acknowledged
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 
+    prev_time = 0  # Initialize for FPS calculation
+
     while True:
+        start_time = time.time()  # Frame start
         ret, frame = cap.read()
         if not ret:
             break
@@ -128,15 +133,21 @@ def run_camera():
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
                     current_time = time.time()
-                    if not alert_acknowledged and (current_time - last_alert_time > REMINDER_INTERVAL):
+                    if notification_feature_on and not alert_acknowledged and (current_time - last_alert_time > REMINDER_INTERVAL):
                         img_path = 'human_detected.jpg'
                         cv2.imwrite(img_path, frame)
                         send_telegram_alert(img_path)
                         last_alert_time = current_time
                         break
-                    elif alert_acknowledged and (current_time - last_alert_time > ALERT_INTERVAL):
+                    elif notification_feature_on and alert_acknowledged and (current_time - last_alert_time > ALERT_INTERVAL):
                         alert_acknowledged = False  # Re-enable alerts
                     break
+
+        # === FPS Calculation ===
+        end_time = time.time()
+        fps = 1 / (end_time - start_time + 1e-5)  # Add epsilon to avoid div by zero
+        cv2.putText(frame, f'FPS: {fps:.2f}', (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
 
         cv2.imshow('YOLOv5 - Deteksi Manusia', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
