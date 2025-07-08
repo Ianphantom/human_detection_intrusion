@@ -15,12 +15,13 @@ from torchvision import transforms
 TELEGRAM_BOT_TOKEN = '7585743264:AAGpvIaRIlJpEOLIfehCxew7F2ievdSgvZc'
 TELEGRAM_API_URL = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}'
 ALERT_INTERVAL = 20 * 60  # 20 minutes
-REMINDER_INTERVAL = 10    # seconds
+REMINDER_INTERVAL = 60    # seconds
 
 telegram_chat_id = '1387459458'
 last_alert_time = 0
 alert_acknowledged = False
 notification_feature_on = True
+detection_pause_until = 0  # Timestamp until which detection is skipped
 
 # === Load YOLOv5 model ===
 model = torch.hub.load('ultralytics/yolov5', 'yolov5n', pretrained=True)
@@ -114,7 +115,7 @@ def poll_telegram_updates():
         time.sleep(1)
 
 def run_camera():
-    global last_alert_time, alert_acknowledged, detection_on
+    global last_alert_time, alert_acknowledged, detection_on, detection_pause_until
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 
     prev_time = 0  # Initialize for FPS calculation
@@ -125,7 +126,9 @@ def run_camera():
         if not ret:
             break
 
-        if detection_on:
+        current_time = time.time()
+
+        if detection_on and current_time >= detection_pause_until:
             results = model(frame)
             for *box, conf, cls in results.xyxy[0]:
                 if int(cls) == 0:
@@ -140,6 +143,8 @@ def run_camera():
                         cv2.imwrite(img_path, frame)
                         send_telegram_alert(img_path)
                         last_alert_time = current_time
+                        detection_pause_until = current_time + 50
+                        print("⏭️ Skipping detection for next 50 seconds.")
                         break
                     elif notification_feature_on and alert_acknowledged and (current_time - last_alert_time > ALERT_INTERVAL):
                         print("⏰ Reminder time passed, turning detection back ON.")
