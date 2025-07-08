@@ -12,15 +12,15 @@ import json
 from torchvision import transforms
 
 # === Telegram Settings ===
-TELEGRAM_BOT_TOKEN = '7792899121:AAHaQs_IhhU9iXBzl8BMYCEU10vaCM9-7ww'
+TELEGRAM_BOT_TOKEN = '7585743264:AAGpvIaRIlJpEOLIfehCxew7F2ievdSgvZc'
 TELEGRAM_API_URL = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}'
 ALERT_INTERVAL = 20 * 60  # 20 minutes
 REMINDER_INTERVAL = 10    # seconds
 
-telegram_chat_id = '1638913692'
+telegram_chat_id = '1387459458'
 last_alert_time = 0
 alert_acknowledged = False
-notification_feature_on = False
+notification_feature_on = True
 
 # === Load YOLOv5 model ===
 model = torch.hub.load('ultralytics/yolov5', 'yolov5n', pretrained=True)
@@ -79,7 +79,9 @@ def poll_telegram_updates():
                     if data == "ack_alert":
                         print("✅ Alert acknowledged.")
                         alert_acknowledged = True
+                        detection_on = False
                         last_alert_time = time.time()
+                        toggle_btn.config(text="Turn ON Detection")
 
                 # Handle plain message
                 elif 'message' in update:
@@ -112,7 +114,7 @@ def poll_telegram_updates():
         time.sleep(1)
 
 def run_camera():
-    global last_alert_time, alert_acknowledged
+    global last_alert_time, alert_acknowledged, detection_on
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 
     prev_time = 0  # Initialize for FPS calculation
@@ -140,7 +142,10 @@ def run_camera():
                         last_alert_time = current_time
                         break
                     elif notification_feature_on and alert_acknowledged and (current_time - last_alert_time > ALERT_INTERVAL):
-                        alert_acknowledged = False  # Re-enable alerts
+                        print("⏰ Reminder time passed, turning detection back ON.")
+                        alert_acknowledged = False
+                        detection_on = True
+                        toggle_btn.config(text="Turn OFF Detection")
                     break
 
         # === FPS Calculation ===
